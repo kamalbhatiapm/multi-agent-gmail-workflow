@@ -1,0 +1,576 @@
+{
+  "name": "multiAgent-gmailWorkflow-keyTermExtraction",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "from:kbhatia.tech@gmail.com"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1488,
+        400
+      ],
+      "id": "506b6672-5f29-4c6d-8911-2be1a05699c5",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "i2LCOYJr5ijQQNBF",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "id": "691faf8a-747b-4753-8cc8-67974eb09d31",
+      "name": "Get Email with Attachments",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1264,
+        400
+      ],
+      "webhookId": "e4978b0a-cd98-4052-977c-5f764afae5a9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "i2LCOYJr5ijQQNBF",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1040,
+        400
+      ],
+      "id": "425a3073-1976-4de5-8a6f-997b77b20348",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Email Body : {{ $('Gmail Trigger').item.json.snippet }}\nFile Text : {{ $('Extract from File').item.json.text }}",
+        "options": {
+          "systemMessage": "You are a contract analysis orchestrator. Your job is to analyze the email body, \ndetect the user's intent, identify the contract type, and call the correct tools \nin the correct order.\n\nSTEP 1 — DETECT INTENT from the email body:\n- \"key terms\", \"extract terms\", \"what are the terms\", \"summarize terms\", \"list terms\" → intent = \"key_term_extraction\"\n- \"risk\", \"review\", \"analyze\", \"red flags\", \"concerns\", \"is this safe\", \"should I sign\" → intent = \"risk_analysis\"\n- If unclear → default to \"risk_analysis\"\n\nSTEP 2 — DETECT CONTRACT TYPE from the contract text:\n- \"Non-Disclosure Agreement\", \"NDA\", \"confidential information\", \"disclosing party\" → contract_type = \"NDA\"\n- \"Master Services Agreement\", \"MSA\", \"statement of work\", \"deliverables\", \"service fees\" → contract_type = \"MSA\"\n- If neither → contract_type = \"UNKNOWN\"\n\nSTEP 3 — CALL TOOLS based on intent:\n\nIF intent = \"key_term_extraction\":\n  → CALL contract_playbook_agent — Pass: contract_type, intent. Wait for response.\n  → THEN CALL key_term_extraction_agent — No extra input needed, reads from memory. Wait for response.\n  → DO NOT call contract_risk_agent.\n\nIF intent = \"risk_analysis\":\n  → CALL contract_playbook_agent — Pass: contract_type, intent. Wait for response.\n  → THEN CALL key_term_extraction_agent — reads from memory. Wait for response.\n  → THEN CALL contract_risk_agent — reads from memory. Wait for response.\n\nFINAL RESPONSE RULES:\n- Do NOT return the playbook rules as your final response.\n- Do NOT return intermediate tool outputs.\n- Wait until ALL required tools have completed.\n- Your final response must ONLY be the output from the LAST agent that ran:\n  - For key_term_extraction → return the key terms extraction output\n  - For risk_analysis → return the risk analysis report\n- Do not ask follow-up questions. Return the final result immediately.\n\nWhen all required tools have been called and results are in memory, \ncompile the final output and return it immediately as your response. \nDo NOT ask follow-up questions. Do NOT wait for more input. \nThe workflow ends when you return the final result.\n\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -784,
+        400
+      ],
+      "id": "be60399f-d058-43b6-8bd3-df243cf46a07",
+      "name": "Orchestrator Agent"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fetches the contract playbook rules from the database based on contract type and stores them in shared memory. ALWAYS call this tool FIRST. Pass contract_type and intent.",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "You are the Contract Playbook Agent. Your only job is to retrieve the correct \nplaybook rules for the given contract type from the database and write a clear \nstructured summary of those rules into shared memory.\n\nYOUR PROCESS:\n1. Use the fetch_playbook tool to query the contract_playbook table, filtered \n   by the provided contract_type.\n2. Write a structured summary to memory in this format:\n\n--- PLAYBOOK RULES FOR [CONTRACT_TYPE] ---\nIntent: [intent]\nRules retrieved: [count]\n\n- Rule Name: [key_term_name]\n  Label: [key_term_label]\n  Description: [key_term_description]\n  Risk Weight: [risk_weight]\n\n--- END PLAYBOOK RULES ---\n\n3. Respond with: \"Playbook loaded for [contract_type]. [N] rules stored in memory.\"\n\nRULES:\n- Do not extract terms. Do not analyze risk.\n- If no rules found, write: \"No playbook rules found for [contract_type].\"\n",
+          "maxIterations": 100
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        -792,
+        624
+      ],
+      "id": "5c58f0c6-2e7d-42d7-ada1-ccc61f566942",
+      "name": "contract_playbook_agent"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Extracts key terms from the contract. Reads contract text and playbook rules from shared memory. Call AFTER contract_playbook_agent. No input needed.",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "You are the Key Term Extraction Agent. Extract key terms from the contract\nusing the playbook rules already stored in shared memory as your guide.\n\nYOUR PROCESS:\n1. Read memory to find:\n   a. The contract text (provided by the orchestrator)\n   b. The playbook rules (written by the Playbook Agent) — this contains\n      the list of key terms you need to extract\n\n2. For EACH rule in the playbook rules, extract its value from the contract.\n   The rule name is what to look for, the description tells you what it means.\n\n3. Return ONLY in this format:\n\nContract Type: [NDA/MSA]\nParties: [Party A] & [Party B]\nEffective Date: [value]\n\nKEY TERMS:\n[For each rule from playbook, one line:]\n- [key_term_label]: [extracted value from contract, or \"Not specified\"]\n\n4. Write this to memory and return it as your final response.\n\nRULES:\n- The list of key terms comes ONLY from the playbook rules in memory.\n- Do not hardcode any term names — use whatever terms the Playbook Agent loaded.\n- Do not add terms that are not in the playbook.\n- Do not score or flag risks.\n- If a term is not found in the contract write \"Not specified.\"\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        -496,
+        624
+      ],
+      "id": "5cfbd3e1-61b2-461a-bf67-382d8f705d6b",
+      "name": "key_term_extraction_agent"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Performs full risk analysis. Reads everything from shared memory. Call LAST and ONLY for risk_analysis intent, after key_term_extraction_agent completes. No input needed.",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "You are the Contract Risk Agent. Perform a comprehensive risk analysis using \neverything stored in shared memory, then save your results to the database.\n\nYOUR PROCESS:\n1. Read memory to find:\n   a. Contract text (from orchestrator)\n   b. Playbook rules (from Playbook Agent)\n   c. Key terms (from Key Term Extraction Agent)\n\n2. Analyze risk using the RISK CRITERIA below based on the contract type.\n\n---\n\nRISK CRITERIA FOR NDA CONTRACTS:\n\n1. GOVERNING LAW\n   - LOW: Neutral jurisdiction (Delaware, New York, California)\n   - MEDIUM: Jurisdiction unfamiliar or inconvenient for your party\n   - HIGH: Jurisdiction heavily favors the other party\n   - CRITICAL: No governing law specified\n\n2. TERM DURATION\n   - LOW: 1-3 years with clear expiry\n   - MEDIUM: 3-5 years\n   - HIGH: Over 5 years or perpetual confidentiality obligations\n   - CRITICAL: No term specified — indefinite obligation\n\n3. CONFIDENTIALITY SCOPE\n   - LOW: Clearly defined, limited to specific information categories\n   - MEDIUM: Broad but with reasonable carve-outs\n   - HIGH: Extremely broad, covers all information shared verbally or in writing\n   - CRITICAL: No carve-outs for public domain, prior knowledge, or independent development\n\n4. PERMITTED DISCLOSURES\n   - LOW: Allows disclosure to employees, advisors on need-to-know basis\n   - MEDIUM: Restricts to named individuals only\n   - HIGH: No permitted disclosures defined\n   - CRITICAL: Prohibits all disclosure including to legal counsel\n\n5. RETURN/DESTRUCTION\n   - LOW: Clear obligation with reasonable timeframe (30 days)\n   - MEDIUM: Obligation exists but timeframe is missing\n   - HIGH: No return/destruction clause\n   - CRITICAL: Receiving party must retain copies indefinitely\n\n6. REMEDY CLAUSE\n   - LOW: Standard injunctive relief mentioned\n   - MEDIUM: Liquidated damages with reasonable cap\n   - HIGH: Unlimited damages with no cap\n   - CRITICAL: Automatic breach penalties or criminal liability mentioned\n\n---\n\nRISK CRITERIA FOR MSA CONTRACTS:\n\n1. PAYMENT TERMS\n   - LOW: Net-30, standard late fee (1% per month)\n   - MEDIUM: Net-15 or late fee above 1.5% per month\n   - HIGH: Payment due on delivery, no grace period\n   - CRITICAL: Automatic suspension of services on first missed payment\n\n2. LIABILITY CAP\n   - LOW: Capped at fees paid in prior 12 months\n   - MEDIUM: Capped at total contract value\n   - HIGH: Cap excludes consequential or indirect damages\n   - CRITICAL: No liability cap — unlimited exposure\n\n3. IP OWNERSHIP\n   - LOW: Work product owned by client, vendor retains pre-existing IP\n   - MEDIUM: Joint ownership of deliverables\n   - HIGH: Vendor retains all IP including custom deliverables\n   - CRITICAL: Vendor claims ownership of client's pre-existing background IP\n\n4. TERMINATION RIGHTS\n   - LOW: Either party can terminate with 30 days notice for convenience\n   - MEDIUM: Only for-cause termination allowed\n   - HIGH: No termination right for client without penalty\n   - CRITICAL: Termination triggers automatic IP transfer to vendor\n\n5. INDEMNIFICATION\n   - LOW: Mutual indemnification for own acts\n   - MEDIUM: One-sided but capped\n   - HIGH: Broad indemnification covering third-party claims without cap\n   - CRITICAL: Client indemnifies vendor for vendor's own negligence\n\n6. SLA TERMS\n   - LOW: Clear uptime commitment (99.9%) with service credits\n   - MEDIUM: SLA defined but credits are minimal or capped low\n   - HIGH: SLA mentioned but no remedy for breach\n   - CRITICAL: No SLA defined, vendor has no performance obligation\n\n---\n\n3. Return your analysis in this exact format:\n\n--- CONTRACT RISK ANALYSIS REPORT ---\nContract Type: [NDA / MSA]\nOverall Risk Score: [1-10]\nOverall Risk Level: [LOW / MEDIUM / HIGH / CRITICAL]\n\nEXECUTIVE SUMMARY:\n[3-5 sentences summarizing overall risk posture]\n\nRISK FINDINGS:\n- Risk #[N]\n  Term: [term name from playbook]\n  Risk Level: [LOW / MEDIUM / HIGH / CRITICAL]\n  Finding: [what was found or not found in the contract]\n  Contract Language: \"[exact quote from contract]\"\n  Reason: [why this is a risk based on the criteria above]\n  Recommendation: [specific action to take]\n\nMISSING CLAUSES:\n- [clause name]: [why it matters]\n\nFAVORABLE TERMS:\n- [term]: [brief note on why it is favorable]\n\nOVERALL RECOMMENDATION: [DO NOT SIGN / SIGN WITH MODIFICATIONS / SIGN]\n[1-2 sentence explanation]\n\n--- END RISK ANALYSIS REPORT ---\n\n---\n\nRISK SCORING:\n1-3  = LOW      (standard contract, minor concerns)\n4-5  = MEDIUM   (notable issues, negotiate before signing)\n6-7  = HIGH     (significant risks, require legal review)\n8-10 = CRITICAL (severe risks, do not sign without major revisions)\n\nCalculate the overall score as the average of all individual term risk scores:\nLOW = 1-2, MEDIUM = 3-5, HIGH = 6-7, CRITICAL = 8-10\n\n---\n\n4. After completing the analysis, call the update_risk_results tool with:\n   - session_id: the execution ID from memory context\n   - risk_score: the overall numeric score (1-10)\n   - risk_level: LOW / MEDIUM / HIGH / CRITICAL\n   - risk_summary: the full report as a single string\n   - recommendation: DO NOT SIGN / SIGN WITH MODIFICATIONS / SIGN\n   - status: \"completed\"\n\n---\n\nRULES:\n- Use ONLY the risk criteria defined above for scoring — do not invent new criteria.\n- Always quote the exact contract language when flagging a risk.\n- Score every term from the playbook — if a term is missing from the contract, \n  score it based on the CRITICAL criteria for that term.\n- Must call update_risk_results before finishing.\n- Do not ask follow-up questions. Return the full report immediately."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        -208,
+        624
+      ],
+      "id": "11603001-77bc-4221-8d70-a143e4af3e32",
+      "name": "contract_risk_agent"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "contract_playbook",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "contract_type",
+              "condition": "eq",
+              "keyValue": "={{ $fromAI('contract_type', 'The contract type to fetch playbook rules for', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        832
+      ],
+      "id": "3724825e-ecb1-4722-92eb-284ed7789950",
+      "name": "fetch_playbook",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HXzUnmUXwEOqYgC2",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ \"test_session\" }}",
+        "contextWindowLength": 90
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -688,
+        832
+      ],
+      "id": "aa142807-502b-4c56-b643-dad19e84e0bd",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -816,
+        832
+      ],
+      "id": "ee5645a9-dcf3-4e3d-baaf-e397e16e7d6e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Ud6lfu4FVZ8L1pYz",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Gmail Trigger').item.json.From }}",
+        "subject": "=Contract Analysis Results - {{ $now.toFormat(\"MMM d, yyyy\") }}",
+        "message": "={{ $('Format HTML Email').item.json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        400
+      ],
+      "id": "66a6b964-02db-4fe1-ad24-52ee4b6c1433",
+      "name": "Send a message",
+      "webhookId": "0225c739-5acb-4f06-ad5e-cecbe16c7e3a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "i2LCOYJr5ijQQNBF",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 📧 Email Trigger\nMonitors Gmail for new emails from sachinparmar1128@gmail.com with contract attachments",
+        "height": 200,
+        "width": 300,
+        "color": 3
+      },
+      "id": "dccbacf3-d03e-47d3-a3a0-040ba4288bba",
+      "name": "Sticky Note cb15a66d",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📎 Fetch Attachments\nRetrieves the full email with PDF attachments downloaded as binary data",
+        "height": 200,
+        "width": 300,
+        "color": 3
+      },
+      "id": "df977562-fa37-45a2-b910-90db4559f735",
+      "name": "Sticky Note 27bada6c",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📄 Extract PDF Text\nExtracts text content from the first PDF attachment (attachment_0)",
+        "height": 200,
+        "width": 300,
+        "color": 4
+      },
+      "id": "3270b7a3-40c9-405b-a4b0-7ef34bf36d19",
+      "name": "Sticky Note f9866f1c",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 💾 Initialize Session\nCreates a new contract_risk_results row with session_id and sender_email for tracking",
+        "height": 200,
+        "width": 300,
+        "color": 5
+      },
+      "id": "8bd33f78-95b2-493e-88cd-55d35eb9369e",
+      "name": "Sticky Note bc646a6d",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🤖 Orchestrator Agent\nDetects intent (key terms vs risk analysis) and contract type (NDA/MSA), then calls specialized agents in sequence",
+        "height": 200,
+        "width": 300,
+        "color": 6
+      },
+      "id": "dead138e-04e8-4fe3-92f7-9c5871ff58fc",
+      "name": "Sticky Note 38f96c5e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📤 Send Results\nReplies to sender with the beautifully formatted analysis results via Gmail",
+        "height": 200,
+        "width": 300,
+        "color": 3
+      },
+      "id": "e6b063fe-27f0-4741-9e14-a9add97cc81a",
+      "name": "Sticky Note d94985fd",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        368,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🔧 Specialized Agent Tools\n\n**contract_playbook_agent**: Fetches playbook rules from database\n**key_term_extraction_agent**: Extracts key terms using playbook rules\n**contract_risk_agent**: Performs full risk analysis and saves to database",
+        "height": 312,
+        "width": 1052,
+        "color": 7
+      },
+      "id": "acc0eadf-8c73-4ab1-9a46-be81fb302d4f",
+      "name": "Sticky Note 2fdb153b",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1792,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🧠 Shared Memory\nAll agents share conversation context and contract data via buffer window memory",
+        "height": 200,
+        "width": 300,
+        "color": 2
+      },
+      "id": "3a75a647-4db8-4274-b56a-d18ffae1bd45",
+      "name": "Sticky Note b30f3df0",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🗄️ Database Tools\n\n**fetch_playbook**: Queries contract_playbook table\n**update_risk_results**: Saves risk analysis results",
+        "height": 232,
+        "width": 380,
+        "color": 5
+      },
+      "id": "7459c88f-bac9-4197-9f9f-4c224c177b5b",
+      "name": "Sticky Note aeb2f54a",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <style>\n    body {\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n      line-height: 1.6;\n      color: #333;\n      max-width: 800px;\n      margin: 0 auto;\n      padding: 20px;\n      background-color: #f5f5f5;\n    }\n    .container {\n      background-color: #ffffff;\n      border-radius: 8px;\n      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n      padding: 40px;\n      margin: 20px 0;\n    }\n    .header {\n      border-bottom: 3px solid #4CAF50;\n      padding-bottom: 20px;\n      margin-bottom: 30px;\n    }\n    h1 {\n      color: #2c3e50;\n      margin: 0;\n      font-size: 28px;\n    }\n    h2 {\n      color: #34495e;\n      margin-top: 30px;\n      margin-bottom: 15px;\n      font-size: 22px;\n      border-left: 4px solid #4CAF50;\n      padding-left: 15px;\n    }\n    h3 {\n      color: #555;\n      margin-top: 20px;\n      margin-bottom: 10px;\n      font-size: 18px;\n    }\n    .risk-badge {\n      display: inline-block;\n      padding: 6px 12px;\n      border-radius: 4px;\n      font-weight: bold;\n      font-size: 14px;\n      margin: 10px 0;\n    }\n    .risk-low { background-color: #d4edda; color: #155724; }\n    .risk-medium { background-color: #fff3cd; color: #856404; }\n    .risk-high { background-color: #f8d7da; color: #721c24; }\n    .risk-critical { background-color: #721c24; color: #ffffff; }\n    .content {\n      white-space: pre-wrap;\n      line-height: 1.8;\n    }\n    .footer {\n      margin-top: 40px;\n      padding-top: 20px;\n      border-top: 1px solid #e0e0e0;\n      text-align: center;\n      color: #777;\n      font-size: 14px;\n    }\n    ul {\n      padding-left: 20px;\n    }\n    li {\n      margin-bottom: 8px;\n    }\n    .highlight {\n      background-color: #fff9e6;\n      padding: 15px;\n      border-left: 4px solid #ffc107;\n      margin: 15px 0;\n    }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h1>📋 Contract Analysis Report</h1>\n    </div>\n    <div class=\"content\">\n      {{ $json.output }}\n    </div>\n    <div class=\"footer\">\n      <p>Generated automatically by Contract Analysis System</p>\n    </div>\n  </div>\n</body>\n</html>"
+      },
+      "id": "f07b3584-771f-43f8-aa66-920a3abdca56",
+      "name": "Format HTML Email",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        160,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🎨 Format HTML Email\nTransforms the agent response into a beautiful HTML email with styling, headers, and risk badges",
+        "height": 200,
+        "width": 300,
+        "color": 4
+      },
+      "id": "89049202-474e-40b6-afc4-2b4e030f6663",
+      "name": "Sticky Note 8f3c2a1d",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Email with Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email with Attachments": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "contract_playbook_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "key_term_extraction_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "contract_risk_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fetch_playbook": {
+      "ai_tool": [
+        [
+          {
+            "node": "contract_playbook_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "contract_risk_agent",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "key_term_extraction_agent",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "contract_playbook_agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "contract_playbook_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "contract_risk_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "key_term_extraction_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orchestrator Agent": {
+      "main": [
+        [
+          {
+            "node": "Format HTML Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format HTML Email": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "217b357d-ed6b-4c3d-9745-899a713601cb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b4a40aff06825395115fea7dd13e44d323c57aa8926575ab214be4610f8b1ad1"
+  },
+  "id": "2Q3wboCmiY2ykmEQ",
+  "tags": []
+}
