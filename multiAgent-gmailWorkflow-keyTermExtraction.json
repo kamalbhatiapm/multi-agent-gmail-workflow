@@ -11,7 +11,7 @@
           ]
         },
         "filters": {
-          "q": "from:kbhatia.tech@gmail.com"
+          "q": "from:your-email@gmail.com"
         }
       },
       "type": "n8n-nodes-base.gmailTrigger",
@@ -24,7 +24,7 @@
       "name": "Gmail Trigger",
       "credentials": {
         "gmailOAuth2": {
-          "id": "i2LCOYJr5ijQQNBF",
+          "id": "YOUR_GMAIL_OAUTH2_CREDENTIAL_ID",
           "name": "Gmail OAuth2 API"
         }
       }
@@ -47,10 +47,10 @@
         -1264,
         400
       ],
-      "webhookId": "e4978b0a-cd98-4052-977c-5f764afae5a9",
+      "webhookId": "YOUR_WEBHOOK_ID",
       "credentials": {
         "gmailOAuth2": {
-          "id": "i2LCOYJr5ijQQNBF",
+          "id": "YOUR_GMAIL_OAUTH2_CREDENTIAL_ID",
           "name": "Gmail OAuth2 API"
         }
       }
@@ -164,8 +164,8 @@
       "name": "fetch_playbook",
       "credentials": {
         "supabaseApi": {
-          "id": "HXzUnmUXwEOqYgC2",
-          "name": "Supabase account 2"
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase account"
         }
       }
     },
@@ -204,8 +204,8 @@
       "name": "OpenAI Chat Model",
       "credentials": {
         "openAiApi": {
-          "id": "Ud6lfu4FVZ8L1pYz",
-          "name": "OpenAi account"
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI account"
         }
       }
     },
@@ -224,17 +224,17 @@
       ],
       "id": "66a6b964-02db-4fe1-ad24-52ee4b6c1433",
       "name": "Send a message",
-      "webhookId": "0225c739-5acb-4f06-ad5e-cecbe16c7e3a",
+      "webhookId": "YOUR_WEBHOOK_ID",
       "credentials": {
         "gmailOAuth2": {
-          "id": "i2LCOYJr5ijQQNBF",
+          "id": "YOUR_GMAIL_OAUTH2_CREDENTIAL_ID",
           "name": "Gmail OAuth2 API"
         }
       }
     },
     {
       "parameters": {
-        "content": "## 📧 Email Trigger\nMonitors Gmail for new emails from sachinparmar1128@gmail.com with contract attachments",
+        "content": "## 📧 Email Trigger\nMonitors Gmail for new emails from a specified sender with contract attachments",
         "height": 200,
         "width": 300,
         "color": 3
@@ -566,11 +566,11 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "217b357d-ed6b-4c3d-9745-899a713601cb",
+  "versionId": "YOUR_VERSION_ID",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "b4a40aff06825395115fea7dd13e44d323c57aa8926575ab214be4610f8b1ad1"
+    "instanceId": "YOUR_INSTANCE_ID"
   },
-  "id": "2Q3wboCmiY2ykmEQ",
+  "id": "YOUR_WORKFLOW_ID",
   "tags": []
 }
